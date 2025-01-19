@@ -1,53 +1,62 @@
 @echo off
 
-REM Step 1: Install necessary global dependencies
+:: Step 1: Install necessary global dependencies
 echo Installing global dependencies...
 npm i -g grenache-grape
 
-REM Step 2: Boot two grape servers
+:: Step 2: Boot two Grape servers
 echo Booting Grape servers...
 start cmd /k "grape --dp 20001 --aph 30001 --bn '127.0.0.1:20002'"
 start cmd /k "grape --dp 20002 --aph 40001 --bn '127.0.0.1:20001'"
 
-REM Step 3: Set up Grenache in your project
+:: Step 3: Set up Grenache in your project
 echo Setting up Grenache in your project...
 npm install --save grenache-nodejs-http
 npm install --save grenache-nodejs-link
 
-REM Configuration for the instances
-set instance1=http://127.0.0.1:30001
-set instance2=http://127.0.0.1:40001
-
-REM Check for Node.js and install dependencies if necessary
-where node >nul 2>nul
-if %ERRORLEVEL% neq 0 (
+:: Check for Node.js
+where node >nul 2>&1
+if %errorlevel% neq 0 (
     echo Node.js is not installed. Please install it first.
-    exit /b
+    pause
+    exit /b 1
 )
 
-where npm >nul 2>nul
-if %ERRORLEVEL% neq 0 (
+:: Check for npm
+where npm >nul 2>&1
+if %errorlevel% neq 0 (
     echo npm is not installed. Please install it first.
-    exit /b
+    pause
+    exit /b 1
 )
 
-REM Start multiple server instances and clients, each in its own terminal window
-call :start_server %instance1% instance1
-call :start_server %instance2% instance2
+:: Configuration for the instances
+setlocal EnableDelayedExpansion
+set instances[1]=http://127.0.0.1:30001
+set instances[2]=http://127.0.0.1:40001
 
-call :run_client %instance1%
-call :run_client %instance2%
-
+:: Function to start server
+:start_server
+set grape_url=%1
+set instance_name=%2
+echo Starting server for instance %instance_name%...
+start cmd /k "set GRAPE_URL=%grape_url% && set INSTANCE_NAME=%instance_name% && node server.js"
 goto :eof
 
-:start_server
-    REM Starting the server for the given grape URL
-    echo Starting server for %~2 with grape URL: %~1
-    start cmd /k "GRAPE_URL=%~1 node server.js"
-    goto :eof
-
+:: Function to run client
 :run_client
-    REM Starting the client for the given grape URL
-    echo Starting client with grape URL: %~1
-    start cmd /k "GRAPE_URL=%~1 node client.js"
-    goto :eof
+set grape_url=%1
+set instance_name=%2
+echo Starting client for instance %instance_name%...
+start cmd /k "set GRAPE_URL=%grape_url% && set INSTANCE_NAME=%instance_name% && node client.js"
+goto :eof
+
+:: Start server and client instances concurrently
+for %%i in (1 2) do (
+    set grape_url=!instances[%%i]!
+    echo Instance %%i Grape URL: !grape_url!
+    call :start_server !grape_url! %%i
+    call :run_client !grape_url! %%i
+)
+
+pause
